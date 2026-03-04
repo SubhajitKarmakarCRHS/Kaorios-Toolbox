@@ -1,0 +1,44 @@
+name: Monitor Toolbox Files
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Download keybox
+        run: curl -L -o keybox.xml https://raw.githubusercontent.com/Wuang26/Kaorios-Toolbox/main/Toolbox-data/keybox.xml
+
+      - name: Download pifprops
+        run: curl -L -o pifprops.json https://raw.githubusercontent.com/Wuang26/Kaorios-Toolbox/main/Toolbox-data/pifprops.json
+
+      - name: Create hash
+        run: sha256sum keybox.xml pifprops.json > new_hash.txt
+
+      - name: Compare
+        id: compare
+        run: |
+          if [ -f old_hash.txt ]; then
+            if cmp -s old_hash.txt new_hash.txt; then
+              echo "changed=false" >> $GITHUB_OUTPUT
+            else
+              echo "changed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Save hash
+        run: mv new_hash.txt old_hash.txt
+
+      - name: Send Telegram Alert
+        if: steps.compare.outputs.changed == 'true'
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage \
+          -d chat_id=${{ secrets.CHAT_ID }} \
+          -d text="Kaorios Toolbox update detected (keybox.xml or pifprops.json)"
